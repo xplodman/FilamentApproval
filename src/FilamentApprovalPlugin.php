@@ -1,15 +1,15 @@
 <?php
 
-namespace VendorName\Skeleton;
+namespace Xplodman\FilamentApproval;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 
-class SkeletonPlugin implements Plugin
+class FilamentApprovalPlugin implements Plugin
 {
     public function getId(): string
     {
-        return 'skeleton';
+        return 'filamentapproval';
     }
 
     public function register(Panel $panel): void
