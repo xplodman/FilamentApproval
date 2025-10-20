@@ -15,6 +15,8 @@ use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Xplodman\FilamentApproval\Commands\FilamentApprovalCommand;
 use Xplodman\FilamentApproval\Testing\TestsFilamentApproval;
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
+use Filament\Panel;
 
 class FilamentApprovalServiceProvider extends PackageServiceProvider
 {
@@ -58,8 +60,6 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
         }
     }
 
-    public function packageRegistered(): void {}
-
     public function packageBooted(): void
     {
         // Asset Registration
@@ -87,6 +87,18 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
 
         // Testing
         Testable::mixin(new TestsFilamentApproval);
+    }
+
+    public function packageRegistered(): void
+    {
+        // Register Filament resources if auto-registration is enabled
+        if (config('filamentapproval.auto_register_resource', true)) {
+            Panel::configureUsing(function (Panel $panel) {
+                $panel->resources([
+                    ApprovalRequestResource::class,
+                ]);
+            });
+        }
     }
 
     protected function getAssetPackageName(): ?string
@@ -147,6 +159,7 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
     {
         return [
             'create_filamentapproval_table',
+            'create_approval_requests_table',
         ];
     }
 }
