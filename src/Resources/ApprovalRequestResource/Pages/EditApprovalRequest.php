@@ -16,24 +16,23 @@ class EditApprovalRequest extends EditRecord
 {
     protected static string $resource = ApprovalRequestResource::class;
 
-    protected function getHeaderActions(): array
+    public function getTitle(): string
     {
-        $actions = parent::getHeaderActions();
-
-        /** @var ApprovalRequest $record */
         $record = $this->getRecord();
 
-        // 🔹 Resolve the Approval Type Enum safely
+        // Resolve the Approval Type Enum safely
         $typeEnum = \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::tryFrom($record->request_type ?? 'edit')
             ?? \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT;
 
-        // 🔹 Request Type Indicator (badge-like button)
-        $actions[] = \Filament\Actions\Action::make('requestType')
-            ->label($typeEnum->getLabel() . ' Request')
-            ->color($typeEnum->getColor())
-            ->icon($typeEnum->getIcon())
-            ->disabled() // display only
-            ->button();
+        // Get the approvable type (model class name)
+        $approvableType = class_basename($record->approvable_type);
+
+        return "{$typeEnum->getLabel()} ({$approvableType}) Request";
+    }
+
+    protected function getHeaderActions(): array
+    {
+        $actions = parent::getHeaderActions();
 
         // 🔹 Existing "View Diff" button
         $actions[] = \Filament\Actions\Action::make('viewDiff')
@@ -197,7 +196,7 @@ class EditApprovalRequest extends EditRecord
             }
 
             $type = $definition['type'] ?? null;
-            $field = $definition['field'] ?? ($type === 'belongsTo' ? ($relation . '_id') : ($relation . '_ids'));
+            $field = $definition['field'] ?? ($type === RelationTypeEnum::BELONGS_TO->value ? ($relation . '_id') : ($relation . '_ids'));
 
             if (! array_key_exists($field, $data)) {
                 continue;
@@ -207,7 +206,7 @@ class EditApprovalRequest extends EditRecord
             $rel = $createdModel->{$relation}();
 
             switch ($type) {
-                case RelationTypeEnum::BELONGS_TO:
+                case RelationTypeEnum::BELONGS_TO->value:
                     if ($value) {
                         $rel->associate($value);
                     } else {
@@ -218,16 +217,16 @@ class EditApprovalRequest extends EditRecord
 
                     break;
 
-                case RelationTypeEnum::BELONGS_TO_MANY:
-                case RelationTypeEnum::MORPH_TO_MANY:
+                case RelationTypeEnum::BELONGS_TO_MANY->value:
+                case RelationTypeEnum::MORPH_TO_MANY->value:
                     $ids = is_array($value) ? $value : [];
                     $sync = $definition['sync'] ?? true;
                     $sync ? $rel->sync($ids) : $rel->attach($ids);
 
                     break;
 
-                case RelationTypeEnum::HAS_MANY:
-                case RelationTypeEnum::MORPH_MANY:
+                case RelationTypeEnum::HAS_MANY->value:
+                case RelationTypeEnum::MORPH_MANY->value:
                     $items = is_array($value) ? $value : [];
                     $mode = $definition['mode'] ?? 'replace'; // replace|merge
 
