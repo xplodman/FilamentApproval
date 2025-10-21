@@ -85,13 +85,13 @@ return [
         // and add the same keys to Shield's `custom_permissions` before generating.
 
         // Examples:
-        // 'approve' => 'Approve:ApprovalRequests',           // Shield v4 default
+        // 'approve' => 'approve_approval_requests',           // Shield v4 default
         // 'approve' => 'approve_approval::request',          // Legacy pattern
         // 'approve' => 'approval.approve',                   // Custom permission
-        // 'reject' => 'Reject:ApprovalRequests',             // Shield v4 default
+        // 'reject' => 'reject_approval_requests',             // Shield v4 default
         // 'reject' => 'reject_approval::request',            // Legacy pattern
         // 'reject' => 'approval.reject',                     // Custom permission
-        // 'bypass' => 'Bypass:ApprovalRequests',             // Shield v4 default
+        // 'bypass' => 'bypass_approval_requests',             // Shield v4 default
         // 'bypass' => 'bypass_approval::request',            // Legacy pattern
         // 'bypass' => 'approval.bypass',                     // Custom permission
 

@@ -8,6 +8,7 @@ use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;
+use Xplodman\FilamentApproval\Enums\RelationTypeEnum;
 use Xplodman\FilamentApproval\Models\ApprovalRequest;
 use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
 
@@ -206,7 +207,7 @@ class EditApprovalRequest extends EditRecord
             $rel = $createdModel->{$relation}();
 
             switch ($type) {
-                case 'belongsTo':
+                case RelationTypeEnum::BELONGS_TO:
                     if ($value) {
                         $rel->associate($value);
                     } else {
@@ -217,16 +218,16 @@ class EditApprovalRequest extends EditRecord
 
                     break;
 
-                case 'belongsToMany':
-                case 'morphToMany':
+                case RelationTypeEnum::BELONGS_TO_MANY:
+                case RelationTypeEnum::MORPH_TO_MANY:
                     $ids = is_array($value) ? $value : [];
                     $sync = $definition['sync'] ?? true;
                     $sync ? $rel->sync($ids) : $rel->attach($ids);
 
                     break;
 
-                case 'hasMany':
-                case 'morphMany':
+                case RelationTypeEnum::HAS_MANY:
+                case RelationTypeEnum::MORPH_MANY:
                     $items = is_array($value) ? $value : [];
                     $mode = $definition['mode'] ?? 'replace'; // replace|merge
 
