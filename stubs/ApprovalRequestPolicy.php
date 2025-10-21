@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\ApprovalRequest;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class ApprovalRequestPolicy
@@ -80,5 +80,3 @@ class ApprovalRequestPolicy
         return $user->can(config('filamentapproval.permissions.reject', 'reject_approval::request'));
     }
 }
-
-

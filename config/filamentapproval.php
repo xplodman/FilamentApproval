@@ -83,7 +83,7 @@ return [
         // Set to null to bypass explicit permission checks and allow based on policy or open access.
         // To enforce permissions (e.g., with Filament Shield + Spatie Permission), set your keys here
         // and add the same keys to Shield's `custom_permissions` before generating.
-        
+
         // Examples:
         // 'approve' => 'Approve:ApprovalRequests',           // Shield v4 default
         // 'approve' => 'approve_approval::request',          // Legacy pattern
@@ -94,7 +94,7 @@ return [
         // 'bypass' => 'Bypass:ApprovalRequests',             // Shield v4 default
         // 'bypass' => 'bypass_approval::request',            // Legacy pattern
         // 'bypass' => 'approval.bypass',                     // Custom permission
-        
+
         'approve' => null,
         'reject' => null,
         // If set, users who can this permission bypass approval flows (create/edit/delete)

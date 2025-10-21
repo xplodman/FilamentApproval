@@ -79,5 +79,3 @@ class ApprovalRequestPolicy
         return $user->can(config('filamentapproval.permissions.reject', 'reject_approval::request'));
     }
 }
-
-

@@ -2,10 +2,10 @@
 
 namespace Xplodman\FilamentApproval\Concerns;
 
+use Filament\Actions;
+use Filament\Notifications\Notification;
 use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;
 use Xplodman\FilamentApproval\Enums\ApprovalTypeEnum;
-use Filament\Notifications\Notification;
-use Filament\Actions;
 
 /**
  * Trait to intercept Filament CreateRecord flow

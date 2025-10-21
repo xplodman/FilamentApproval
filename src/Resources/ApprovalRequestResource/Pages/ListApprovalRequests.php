@@ -2,9 +2,9 @@
 
 namespace Xplodman\FilamentApproval\Resources\ApprovalRequestResource\Pages;
 
-use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
 
 class ListApprovalRequests extends ListRecords
 {
