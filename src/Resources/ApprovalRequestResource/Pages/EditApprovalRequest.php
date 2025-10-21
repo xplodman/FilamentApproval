@@ -7,7 +7,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
-use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;
+use Xplodman\FilamentApproval\Enums\ApprovalTypeEnum;
 use Xplodman\FilamentApproval\Enums\RelationTypeEnum;
 use Xplodman\FilamentApproval\Models\ApprovalRequest;
 use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
@@ -20,11 +20,9 @@ class EditApprovalRequest extends EditRecord
     {
         $record = $this->getRecord();
 
-        // Resolve the Approval Type Enum safely
-        $typeEnum = \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::tryFrom($record->request_type ?? 'edit')
-            ?? \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT;
+        $typeEnum = \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::tryFrom($record->request_type ?? \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT->value)
+            ?? \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT->value;
 
-        // Get the approvable type (model class name)
         $approvableType = class_basename($record->approvable_type);
 
         return "{$typeEnum->getLabel()} ({$approvableType}) Request";
@@ -63,33 +61,95 @@ class EditApprovalRequest extends EditRecord
     public function form(Schema $schema): Schema
     {
         $record = $this->getRecord();
-        $approvableType = new ($record->approvable_type);
-        $approvableType->fill($record->attributes ?? []);
+        $requestType = $record->request_type ?? ApprovalTypeEnum::EDIT->value;
 
-        // For edit requests, set the actual record being edited as the context
-        if (($record->request_type ?? 'edit') === 'edit' && $record->approvable_id) {
-            $actualRecord = $record->approvable_type::find($record->approvable_id);
-            if ($actualRecord) {
-                $approvableType = $actualRecord;
-            }
-        }
-
+        $approvableType = $this->resolveApprovableType($record, $requestType);
         $resourceClass = $this->resolveResourceClass($record, $approvableType);
+
         if (! $resourceClass) {
-            // 🔸 If nothing found, fallback gracefully or throw error
             throw new \Exception('No valid resource class found for approvable type: ' . $record->approvable_type);
         }
 
         $schema->record($approvableType);
+        $isDisabled = $this->shouldDisableForm($record);
 
-        return $resourceClass::form($schema)->disabled(fn () => ! $record->isPending());
+        return $resourceClass::form($schema)->disabled($isDisabled);
+    }
+
+    /**
+     * Resolve the approvable type instance based on request type
+     */
+    private function resolveApprovableType($record, string $requestType)
+    {
+        if ($requestType === ApprovalTypeEnum::DELETE->value) {
+            return $this->resolveDeleteApprovableType($record);
+        }
+
+        return $this->resolveCreateEditApprovableType($record, $requestType);
+    }
+
+    /**
+     * Resolve approvable type for delete requests using original data
+     */
+    private function resolveDeleteApprovableType($record)
+    {
+        // Try to get the actual record first
+        if ($record->approvable_id) {
+            $actualRecord = $record->approvable_type::find($record->approvable_id);
+            if ($actualRecord) {
+                return $actualRecord;
+            }
+        }
+
+        // Fallback to original_data if record not found or no approvable_id
+        $approvableType = new ($record->approvable_type);
+        $approvableType->fill($record->original_data ?? []);
+
+        return $approvableType;
+    }
+
+    /**
+     * Resolve approvable type for create/edit requests using attributes
+     */
+    private function resolveCreateEditApprovableType($record, string $requestType)
+    {
+        $approvableType = new ($record->approvable_type);
+        $approvableType->fill($record->attributes ?? []);
+
+        // For edit requests, use the actual record if available
+        if ($requestType === ApprovalTypeEnum::EDIT->value && $record->approvable_id) {
+            $actualRecord = $record->approvable_type::find($record->approvable_id);
+            if ($actualRecord) {
+                return $actualRecord;
+            }
+        }
+
+        return $approvableType;
+    }
+
+    /**
+     * Determine if the form should be disabled
+     */
+    private function shouldDisableForm($record): bool
+    {
+        return ! $record->isPending();
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // If approval request stores attributes, extract it for editing
-        if (isset($data['attributes']) && is_array($data['attributes'])) {
-            return array_merge($data, $data['attributes']);
+        $record = $this->getRecord();
+        $requestType = $record->request_type ?? ApprovalTypeEnum::EDIT->value;
+
+        // For delete requests, use original_data instead of attributes
+        if ($requestType === ApprovalTypeEnum::DELETE->value) {
+            if (isset($data['original_data']) && is_array($data['original_data'])) {
+                return array_merge($data, $data['original_data']);
+            }
+        } else {
+            // For create/edit requests, use attributes
+            if (isset($data['attributes']) && is_array($data['attributes'])) {
+                return array_merge($data, $data['attributes']);
+            }
         }
 
         return $data;
@@ -97,48 +157,69 @@ class EditApprovalRequest extends EditRecord
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // 🔹 Merge attributes with form data
-        // Form ($data) values take priority over attributes
-        $attributes = is_array($record->attributes) ? $record->attributes : [];
-        $data = array_merge($attributes, $data);
+        $requestType = $record->request_type ?? \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT->value;
 
-        // 🔹 Determine target model class
+        // 🔹 Determine target model class (needed for all request types)
         $modelClass = $record->approvable_type;
+        $attributes = [];
 
-        /** @var Model $modelInstance */
-        $modelInstance = new $modelClass;
+        // For delete requests, we don't need to process attributes since no changes are requested
+        if ($requestType !== \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::DELETE->value) {
+            // 🔹 Merge attributes with form data for create/edit requests
+            $attributes = is_array($record->attributes) ? $record->attributes : [];
+            $data = array_merge($attributes, $data);
 
-        // 🔹 Filter to fillable attributes
-        $fillable = method_exists($modelInstance, 'getFillable')
-            ? $modelInstance->getFillable()
-            : array_keys($data);
+            /** @var Model $modelInstance */
+            $modelInstance = new $modelClass;
 
-        $attributes = array_intersect_key($data, array_flip($fillable));
+            // 🔹 Filter fillable
+            $fillable = method_exists($modelInstance, 'getFillable')
+                ? $modelInstance->getFillable()
+                : array_keys($data);
 
-        // 🔹 Allow model to modify attributes before processing
-        $attributes = $this->processAttributesBeforeSave($attributes, $record, $modelInstance);
-
-        // Apply create or edit
-        if (($record->request_type ?? 'edit') === 'create') {
-            /** @var Model $createdModel */
-            $createdModel = $modelClass::query()->create($attributes);
-
-            $this->handleModelRelations(createdModel: $createdModel, approvalModel: $record, data: $data);
-
-            // Link created model back to approval
-            $record->approvable_id = $createdModel->getKey();
-        } else {
-            // Handle edit case - update the existing model
-            $existingModel = $modelClass::query()->find($record->approvable_id);
-
-            if ($existingModel) {
-                $existingModel->update($attributes);
-                $this->handleModelRelations(createdModel: $existingModel, approvalModel: $record, data: $data);
-            }
+            $attributes = array_intersect_key($data, array_flip($fillable));
+            $attributes = $this->processAttributesBeforeSave($attributes, $record, $modelInstance);
         }
 
-        // Mark approval as approved
-        $record->status = ApprovalStatusEnum::APPROVED->value;
+        // 🔹 Handle by request type
+        switch ($requestType) {
+            case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::CREATE->value:
+                /** @var Model $createdModel */
+                $createdModel = $modelClass::query()->create($attributes);
+                $this->handleModelRelations(createdModel: $createdModel, approvalModel: $record, data: $data);
+                $record->approvable_id = $createdModel->getKey();
+
+                break;
+
+            case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT->value:
+                $existingModel = $modelClass::query()->find($record->approvable_id);
+                if ($existingModel) {
+                    $existingModel->update($attributes);
+                    $this->handleModelRelations(createdModel: $existingModel, approvalModel: $record, data: $data);
+                }
+
+                break;
+
+            case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::DELETE->value:
+                $existingModel = $modelClass::query()->find($record->approvable_id);
+                if ($existingModel) {
+                    // 🔹 Allow the model to intercept deletion if needed
+                    if (method_exists($existingModel, 'beforeApprovalDelete')) {
+                        $existingModel->beforeApprovalDelete($record);
+                    }
+
+                    $existingModel->delete();
+
+                    if (method_exists($existingModel, 'afterApprovalDelete')) {
+                        $existingModel->afterApprovalDelete($record);
+                    }
+                }
+
+                break;
+        }
+
+        // 🔹 Mark approval as approved
+        $record->status = \Xplodman\FilamentApproval\Enums\ApprovalStatusEnum::APPROVED->value;
         $record->decided_by_id = auth()->id();
         $record->decided_at = now();
         $record->save();
