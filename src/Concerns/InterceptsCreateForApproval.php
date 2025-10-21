@@ -2,9 +2,10 @@
 
 namespace Xplodman\FilamentApproval\Concerns;
 
-use Xplodman\FilamentApproval\Models\ApprovalRequest;
+use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;
+use Xplodman\FilamentApproval\Enums\ApprovalTypeEnum;
 use Filament\Notifications\Notification;
-use Illuminate\Support\Arr;
+use Filament\Actions;
 
 /**
  * Trait to intercept Filament CreateRecord flow
@@ -14,6 +15,10 @@ trait InterceptsCreateForApproval
 {
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        if ($this->isBypassUser()) {
+            return $data; // proceed with normal create
+        }
+
         return $this->interceptCreateForApproval($data);
     }
 
@@ -21,16 +26,19 @@ trait InterceptsCreateForApproval
     {
         $data = array_merge($this->data, $data);
 
-        // Create approval request
-        ApprovalRequest::create([
-            'request_type' => ApprovalRequest::TYPE_CREATE,
+        // Get the configurable model class
+        $approvalRequestModel = config('filamentapproval.approval_request_model', \Xplodman\FilamentApproval\Models\ApprovalRequest::class);
+
+        // Create approval request using the configurable model
+        $approvalRequestModel::create([
+            'request_type' => ApprovalTypeEnum::CREATE,
             'requester_id' => auth()->id(),
             'approvable_type' => $this->getModel(),
             'attributes' => $data,
             'relationships' => [],
             'original_data' => [],
             'resource_class' => $this->getResource(),
-            'status' => ApprovalRequest::STATUS_PENDING,
+            'status' => ApprovalStatusEnum::PENDING,
         ]);
 
         // Stop actual record creation
@@ -42,6 +50,14 @@ trait InterceptsCreateForApproval
      */
     protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
     {
+        if ($this->isBypassUser()) {
+            if (method_exists(get_parent_class($this) ?: self::class, 'handleRecordCreation')) {
+                return parent::handleRecordCreation($data);
+            }
+
+            return new ($this->getModel())();
+        }
+
         $modelName = class_basename($this->getModel());
 
         Notification::make()
@@ -67,5 +83,28 @@ trait InterceptsCreateForApproval
     protected function getCreatedNotification(): ?\Filament\Notifications\Notification
     {
         return null;
+    }
+
+    /**
+     * Change Create action label for non-bypass users.
+     */
+    protected function getCreateFormAction(): Actions\Action
+    {
+        $action = parent::getCreateFormAction();
+
+        return $action->label(fn () => $this->isBypassUser() ? 'Create' : 'Submit for Approval');
+    }
+
+    /**
+     * Shared bypass helper with Edit trait.
+     */
+    protected function isBypassUser(): bool
+    {
+        $permission = config('filamentapproval.permissions.bypass');
+        if (empty($permission)) {
+            return false;
+        }
+
+        return auth()->user()?->can($permission) ?? false;
     }
 }

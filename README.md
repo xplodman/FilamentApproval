@@ -100,7 +100,19 @@ class PostResource extends Resource
 
 ### Managing Approval Requests
 
-The package automatically registers an `ApprovalRequestResource` in your Filament admin panel where administrators can:
+To use the approval management interface, you need to register the `ApprovalRequestResource` in your Filament panel. Add this to your panel's service provider or panel configuration:
+
+```php
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
+
+// In your panel configuration
+$panel->resources([
+    ApprovalRequestResource::class,
+    // ... your other resources
+]);
+```
+
+The `ApprovalRequestResource` provides an admin interface where administrators can:
 
 - View all pending, approved, and rejected requests
 - Filter by status, request type, requester, and model type

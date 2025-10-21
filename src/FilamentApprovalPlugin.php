@@ -4,6 +4,7 @@ namespace Xplodman\FilamentApproval;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
 
 class FilamentApprovalPlugin implements Plugin
 {
@@ -14,7 +15,9 @@ class FilamentApprovalPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
-        //
+        $panel->resources([
+            ApprovalRequestResource::class,
+        ]);
     }
 
     public function boot(Panel $panel): void

@@ -52,9 +52,7 @@ class TestCase extends Orchestra
     {
         config()->set('database.default', 'testing');
 
-        /*
-        $migration = include __DIR__.'/../database/migrations/create_filamentapproval_table.php.stub';
+        $migration = include __DIR__ . '/../database/migrations/create_approval_requests_table.php';
         $migration->up();
-        */
     }
 }

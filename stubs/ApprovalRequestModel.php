@@ -1,6 +1,6 @@
 <?php
 
-namespace Xplodman\FilamentApproval\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;

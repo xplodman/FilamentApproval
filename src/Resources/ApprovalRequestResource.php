@@ -2,23 +2,29 @@
 
 namespace Xplodman\FilamentApproval\Resources;
 
-use Xplodman\FilamentApproval\Resources\ApprovalRequestResource\Pages\ListApprovalRequests;
-use Xplodman\FilamentApproval\Resources\ApprovalRequestResource\Pages\EditApprovalRequest;
-use Xplodman\FilamentApproval\Models\ApprovalRequest;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Xplodman\FilamentApproval\Enums\ApprovalStatusEnum;
+use Xplodman\FilamentApproval\Enums\ApprovalTypeEnum;
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource\Pages\EditApprovalRequest;
+use Xplodman\FilamentApproval\Resources\ApprovalRequestResource\Pages\ListApprovalRequests;
 
 class ApprovalRequestResource extends Resource
 {
-    protected static ?string $model = ApprovalRequest::class;
+    protected static ?string $model = null; // Will be set dynamically
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clipboard-document-check';
 
     protected static string | \UnitEnum | null $navigationGroup = 'Management';
+
+    public static function getModel(): string
+    {
+        return config('filamentapproval.approval_request_model', \Xplodman\FilamentApproval\Models\ApprovalRequest::class);
+    }
 
     public static function getNavigationIcon(): ?string
     {
@@ -28,6 +34,26 @@ class ApprovalRequestResource extends Resource
     public static function getNavigationGroup(): ?string
     {
         return config('filamentapproval.navigation_group', 'Management');
+    }
+
+    public static function getPermissionPrefixes(): array
+    {
+        return [
+            'view',
+            'view_any',
+            'create',
+            'update',
+            'delete',
+            'delete_any',
+            'force_delete',
+            'force_delete_any',
+            'restore',
+            'restore_any',
+            'replicate',
+            'reorder',
+            'approve',
+            'reject',
+        ];
     }
 
     public static function canEdit(Model $record): bool
@@ -42,61 +68,37 @@ class ApprovalRequestResource extends Resource
                 TextColumn::make('requester.name')
                     ->label('Requester'),
                 TextColumn::make('request_type')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'create' => 'info',
-                        'edit' => 'warning',
-                        'delete' => 'danger',
-                    }),
+                    ->badge(),
                 TextColumn::make('approvable_type')
                     ->label('Model')
-                    ->formatStateUsing(fn($state) => class_basename($state)),
+                    ->formatStateUsing(fn ($state) => class_basename($state)),
                 TextColumn::make('status')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'pending' => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                    }),
+                    ->label('Status')
+                    ->badge(),
+                TextColumn::make('decided_reason')
+                    ->label('Reason')
+                    ->wrap()
+                    ->limit(50)
+                    ->tooltip(fn ($state) => $state),
                 TextColumn::make('created_at')
                     ->label('Requested')
                     ->dateTime(),
                 TextColumn::make('decidedBy.name')
-                    ->label('Decision By')
+                    ->label('decided By')
                     ->placeholder('N/A'),
-                TextColumn::make('decision_at')
-                    ->label('Decision Date')
+                TextColumn::make('decided_at')
+                    ->label('decided Date')
                     ->dateTime()
                     ->placeholder('N/A'),
             ])
             ->filters([
                 // Status filter with counts
                 SelectFilter::make('status')
-                    ->options([
-                        'pending' => 'Pending',
-                        'approved' => 'Approved',
-                        'rejected' => 'Rejected',
-                    ])
-                    ->default('pending')
-                    ->indicator(function ($state) {
-                        return match ($state) {
-                            'pending' => 'Pending',
-                            'approved' => 'Approved',
-                            'rejected' => 'Rejected',
-                            default => null,
-                        };
-                    }),
+                    ->options(ApprovalStatusEnum::class)
+                    ->default(ApprovalStatusEnum::PENDING->value),
 
-                // Request type filter
                 SelectFilter::make('request_type')
-                    ->options([
-                        'create' => 'Create',
-                        'edit' => 'Edit',
-                        'delete' => 'Delete',
-                    ])
-                    ->multiple()
-                    ->searchable()
-                    ->label('Request Type'),
+                    ->options(ApprovalTypeEnum::class),
 
                 // Requester filter (relationship)
                 SelectFilter::make('requester_id')
@@ -108,7 +110,9 @@ class ApprovalRequestResource extends Resource
                 // Model type filter
                 SelectFilter::make('approvable_type')
                     ->options(function () {
-                        return ApprovalRequest::query()
+                        $modelClass = config('filamentapproval.approval_request_model', \Xplodman\FilamentApproval\Models\ApprovalRequest::class);
+
+                        return $modelClass::query()
                             ->select('approvable_type')
                             ->distinct()
                             ->get()

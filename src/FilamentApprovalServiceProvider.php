@@ -2,10 +2,8 @@
 
 namespace Xplodman\FilamentApproval;
 
-use Filament\Support\Assets\AlpineComponent;
+use Filament\Panel;
 use Filament\Support\Assets\Asset;
-use Filament\Support\Assets\Css;
-use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Filesystem\Filesystem;
@@ -13,10 +11,8 @@ use Livewire\Features\SupportTesting\Testable;
 use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Xplodman\FilamentApproval\Commands\FilamentApprovalCommand;
-use Xplodman\FilamentApproval\Testing\TestsFilamentApproval;
 use Xplodman\FilamentApproval\Resources\ApprovalRequestResource;
-use Filament\Panel;
+use Xplodman\FilamentApproval\Testing\TestsFilamentApproval;
 
 class FilamentApprovalServiceProvider extends PackageServiceProvider
 {
@@ -76,6 +72,12 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
         // Icon Registration
         FilamentIcon::register($this->getIcons());
 
+        // Register the configurable model
+        $this->app->bind(
+            \Xplodman\FilamentApproval\Models\ApprovalRequest::class,
+            config('filamentapproval.approval_request_model', \Xplodman\FilamentApproval\Models\ApprovalRequest::class)
+        );
+
         // Handle Stubs
         if (app()->runningInConsole()) {
             foreach (app(Filesystem::class)->files(__DIR__ . '/../stubs/') as $file) {
@@ -83,6 +85,16 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
                     $file->getRealPath() => base_path("stubs/filamentapproval/{$file->getFilename()}"),
                 ], 'filamentapproval-stubs');
             }
+
+            // Directly publish the generic model into app/Models via a separate tag
+            $this->publishes([
+                __DIR__ . '/../stubs/ApprovalRequestModel.php' => app_path('Models/ApprovalRequest.php'),
+            ], 'filamentapproval-model');
+
+            // Directly publish the policy into app/Policies via a separate tag
+            $this->publishes([
+                __DIR__ . '/../stubs/ApprovalRequestPolicy.php' => app_path('Policies/ApprovalRequestPolicy.php'),
+            ], 'filamentapproval-policy');
         }
 
         // Testing
@@ -92,7 +104,7 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         // Register Filament resources if auto-registration is enabled
-        if (config('filamentapproval.auto_register_resource', true)) {
+        if (config('filamentapproval.auto_register_resource', false)) {
             Panel::configureUsing(function (Panel $panel) {
                 $panel->resources([
                     ApprovalRequestResource::class,
@@ -112,9 +124,7 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
     protected function getAssets(): array
     {
         return [
-            // AlpineComponent::make('filamentapproval', __DIR__ . '/../resources/dist/components/filamentapproval.js'),
-            Css::make('filamentapproval-styles', __DIR__ . '/../resources/dist/filamentapproval.css'),
-            Js::make('filamentapproval-scripts', __DIR__ . '/../resources/dist/filamentapproval.js'),
+            // No assets for now
         ];
     }
 
@@ -124,7 +134,6 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
     protected function getCommands(): array
     {
         return [
-            FilamentApprovalCommand::class,
         ];
     }
 
@@ -158,7 +167,6 @@ class FilamentApprovalServiceProvider extends PackageServiceProvider
     protected function getMigrations(): array
     {
         return [
-            'create_filamentapproval_table',
             'create_approval_requests_table',
         ];
     }

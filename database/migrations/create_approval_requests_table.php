@@ -22,9 +22,9 @@ return new class extends Migration
             $table->string('resource_class')->nullable(); // Filament resource class for form rendering
 
             $table->string('status')->default('pending'); // pending, approved, rejected
-            $table->unsignedBigInteger('decision_by_id')->nullable();
-            $table->text('decision_reason')->nullable();
-            $table->timestamp('decision_at')->nullable();
+            $table->unsignedBigInteger('decided_by_id')->nullable();
+            $table->text('decided_reason')->nullable();
+            $table->timestamp('decided_at')->nullable();
 
             $table->timestamps();
             $table->softDeletes(); // For archiving approved/rejected requests
@@ -35,7 +35,7 @@ return new class extends Migration
             $table->index(['status', 'created_at']);
 
             $table->foreign('requester_id')->references('id')->on('users');
-            $table->foreign('decision_by_id')->references('id')->on('users');
+            $table->foreign('decided_by_id')->references('id')->on('users');
         });
     }
 
