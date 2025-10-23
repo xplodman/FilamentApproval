@@ -63,8 +63,8 @@ class EditApprovalRequest extends EditRecord
         $record = $this->getRecord();
         $requestType = $record->request_type ?? ApprovalTypeEnum::EDIT->value;
 
-        $approvableType = $this->resolveApprovableType($record, $requestType);
-        $resourceClass = $this->resolveResourceClass($record, $approvableType);
+        $approvableType = $this->resolveApprovableType($record);
+        $resourceClass = $this->resolveResourceClass($record);
 
         if (! $resourceClass) {
             throw new \Exception('No valid resource class found for approvable type: ' . $record->approvable_type);
@@ -79,13 +79,15 @@ class EditApprovalRequest extends EditRecord
     /**
      * Resolve the approvable type instance based on request type
      */
-    private function resolveApprovableType($record, string $requestType)
+    private function resolveApprovableType($record)
     {
+        $requestType = $record->request_type ?? ApprovalTypeEnum::EDIT->value;
+
         if ($requestType === ApprovalTypeEnum::DELETE->value) {
             return $this->resolveDeleteApprovableType($record);
         }
 
-        return $this->resolveCreateEditApprovableType($record, $requestType);
+        return $this->resolveCreateEditApprovableType($record);
     }
 
     /**
@@ -111,8 +113,10 @@ class EditApprovalRequest extends EditRecord
     /**
      * Resolve approvable type for create/edit requests using attributes
      */
-    private function resolveCreateEditApprovableType($record, string $requestType)
+    private function resolveCreateEditApprovableType($record)
     {
+        $requestType = $record->request_type ?? ApprovalTypeEnum::EDIT->value;
+
         $approvableType = new ($record->approvable_type);
         $approvableType->fill($record->attributes ?? []);
 
@@ -181,21 +185,39 @@ class EditApprovalRequest extends EditRecord
             $attributes = $this->processAttributesBeforeSave($attributes, $record, $modelInstance);
         }
 
+        $modelResource = $this->resolveResourceClass($record);
+
         // 🔹 Handle by request type
         switch ($requestType) {
             case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::CREATE->value:
+                if (method_exists($modelResource, 'beforeApprovalCreate')) {
+                    $modelResource->beforeApprovalCreate($record);
+                }
+
                 /** @var Model $createdModel */
                 $createdModel = $modelClass::query()->create($attributes);
                 $this->handleModelRelations(createdModel: $createdModel, approvalModel: $record, data: $data);
                 $record->approvable_id = $createdModel->getKey();
+
+                if (method_exists($modelResource, 'afterApprovalCreate')) {
+                    $modelResource->afterApprovalCreate($record);
+                }
 
                 break;
 
             case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::EDIT->value:
                 $existingModel = $modelClass::query()->find($record->approvable_id);
                 if ($existingModel) {
+                    if (method_exists($modelResource, 'beforeApprovalUpdate')) {
+                        $modelResource->beforeApprovalUpdate($record);
+                    }
+
                     $existingModel->update($attributes);
                     $this->handleModelRelations(createdModel: $existingModel, approvalModel: $record, data: $data);
+
+                    if (method_exists($modelResource, 'afterApprovalUpdate')) {
+                        $modelResource->afterApprovalUpdate($record);
+                    }
                 }
 
                 break;
@@ -203,15 +225,14 @@ class EditApprovalRequest extends EditRecord
             case \Xplodman\FilamentApproval\Enums\ApprovalTypeEnum::DELETE->value:
                 $existingModel = $modelClass::query()->find($record->approvable_id);
                 if ($existingModel) {
-                    // 🔹 Allow the model to intercept deletion if needed
-                    if (method_exists($existingModel, 'beforeApprovalDelete')) {
-                        $existingModel->beforeApprovalDelete($record);
+                    if (method_exists($modelResource, 'beforeApprovalDelete')) {
+                        $modelResource->beforeApprovalDelete($record);
                     }
 
                     $existingModel->delete();
 
-                    if (method_exists($existingModel, 'afterApprovalDelete')) {
-                        $existingModel->afterApprovalDelete($record);
+                    if (method_exists($modelResource, 'afterApprovalDelete')) {
+                        $modelResource->afterApprovalDelete($record);
                     }
                 }
 
@@ -264,7 +285,7 @@ class EditApprovalRequest extends EditRecord
             });
     }
 
-    private function handleModelRelations($createdModel, $approvalModel, $data)
+    private function handleModelRelations($createdModel, $approvalModel, $data): void
     {
         $map = $this->resolveRelationsMapForApproval($createdModel, $approvalModel);
         if (empty($map)) {
@@ -335,7 +356,7 @@ class EditApprovalRequest extends EditRecord
 
     private function resolveRelationsMapForApproval($domainModel, $approvalRequest): array
     {
-        $modelResource = $this->resolveResourceClass($approvalRequest, $domainModel);
+        $modelResource = $this->resolveResourceClass($approvalRequest);
         if (method_exists($modelResource, 'approvalRelations')) {
             $map = $modelResource::approvalRelations();
             if (is_array($map)) {
@@ -406,7 +427,7 @@ class EditApprovalRequest extends EditRecord
             });
     }
 
-    private function resolveResourceClass(Model $record, $approvableType)
+    private function resolveResourceClass(Model $record)
     {
         // Retrieve resource class from stored resource_class field
         $resourceClass = $record->resource_class;
@@ -416,6 +437,7 @@ class EditApprovalRequest extends EditRecord
         }
 
         // Fallback to resource auto-discovery via approvable type
+        $approvableType = $record->approvable_type;
         $resourceClass = $approvableType::getResource() ?? null;
 
         if ($resourceClass) {
