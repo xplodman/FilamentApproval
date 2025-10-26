@@ -24,6 +24,10 @@ trait InterceptsCreateForApproval
 
     protected function interceptCreateForApproval(array $data): array
     {
+        if ($this->isBypassUser()) {
+            return $data; // proceed with normal create
+        }
+
         $data = array_merge($this->data, $data);
 
         // Get the configurable model class
@@ -82,6 +86,9 @@ trait InterceptsCreateForApproval
      */
     protected function getCreatedNotification(): ?\Filament\Notifications\Notification
     {
+        if ($this->isBypassUser()) {
+            return parent::getCreatedNotification();
+        }
         return null;
     }
 

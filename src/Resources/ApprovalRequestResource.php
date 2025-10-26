@@ -58,7 +58,16 @@ class ApprovalRequestResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()->hasRole('administrator');
+        $approvePermission = config('filamentapproval.permissions.approve');
+        $rejectPermission = config('filamentapproval.permissions.reject');
+
+        $user = auth()->user();
+
+        // If either permission is empty → treat as allowed
+        $canApprove = empty($approvePermission) || $user?->can($approvePermission);
+        $canReject = empty($rejectPermission) || $user?->can($rejectPermission);
+
+        return $canApprove || $canReject;
     }
 
     public static function table(Table $table): Table
